@@ -29,7 +29,7 @@ class CatVTONPipeline:
         weight_dtype=torch.float32,
         device='cuda',
         compile=False,
-        skip_safety_check=False,
+        skip_safety_check=True,
         use_tf32=True,
     ):
         self.device = device
@@ -38,9 +38,6 @@ class CatVTONPipeline:
 
         self.noise_scheduler = DDIMScheduler.from_pretrained(base_ckpt, subfolder="scheduler")
         self.vae = AutoencoderKL.from_pretrained("stabilityai/sd-vae-ft-mse").to(device, dtype=weight_dtype)
-        if not skip_safety_check:
-            self.feature_extractor = CLIPImageProcessor.from_pretrained(base_ckpt, subfolder="feature_extractor")
-            self.safety_checker = StableDiffusionSafetyChecker.from_pretrained(base_ckpt, subfolder="safety_checker").to(device, dtype=weight_dtype)
         self.unet = UNet2DConditionModel.from_pretrained(base_ckpt, subfolder="unet").to(device, dtype=weight_dtype)
         init_adapter(self.unet, cross_attn_cls=SkipAttnProcessor)  # Skip Cross-Attention
         self.attn_modules = get_trainable_module(self.unet, "attention")
@@ -203,15 +200,6 @@ class CatVTONPipeline:
         image = numpy_to_pil(image)
         
         # Safety Check
-        if not self.skip_safety_check:
-            current_script_directory = os.path.dirname(os.path.realpath(__file__))
-            nsfw_image = os.path.join(os.path.dirname(current_script_directory), 'resource', 'img', 'NSFW.jpg')
-            nsfw_image = PIL.Image.open(nsfw_image).resize(image[0].size)
-            image_np = np.array(image)
-            _, has_nsfw_concept = self.run_safety_checker(image=image_np)
-            for i, not_safe in enumerate(has_nsfw_concept):
-                if not_safe:
-                    image[i] = nsfw_image
         return image
 
 
@@ -320,13 +308,4 @@ class CatVTONPix2PixPipeline(CatVTONPipeline):
         image = numpy_to_pil(image)
         
         # Safety Check
-        if not self.skip_safety_check:
-            current_script_directory = os.path.dirname(os.path.realpath(__file__))
-            nsfw_image = os.path.join(os.path.dirname(current_script_directory), 'resource', 'img', 'NSFW.jpg')
-            nsfw_image = PIL.Image.open(nsfw_image).resize(image[0].size)
-            image_np = np.array(image)
-            _, has_nsfw_concept = self.run_safety_checker(image=image_np)
-            for i, not_safe in enumerate(has_nsfw_concept):
-                if not_safe:
-                    image[i] = nsfw_image
         return image
